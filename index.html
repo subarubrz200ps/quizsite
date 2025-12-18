@@ -6,6 +6,7 @@
   <title>クイズ選択 → 四択テスト</title>
   <style>
     :root{
+      /* ===== Light Theme ===== */
       --bg:#ffffff;
       --bg2:#f6f7fb;
       --card:#ffffff;
@@ -27,6 +28,7 @@
       background:linear-gradient(180deg,var(--bg),var(--bg2));
       color:var(--text);
     }
+    a{ color:inherit; }
     .wrap{ max-width: 1100px; margin:0 auto; padding: 22px 14px 56px; }
     header{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:12px; }
     h1{ margin:0; font-size:22px; letter-spacing:.02em; }
@@ -78,7 +80,7 @@
       font-weight:700;
     }
 
-    /* ===== Home ===== */
+    /* ====== Home (quiz chooser) ====== */
     #home{ display:block; }
     .grid{
       display:grid;
@@ -118,7 +120,7 @@
     }
     .qactions{ display:flex; gap:10px; flex-wrap:wrap; }
 
-    /* ===== App ===== */
+    /* ====== App (quiz screen) ====== */
     #app{ display:none; }
     .layout{ display:grid; grid-template-columns: 1fr 320px; gap:12px; align-items:start; }
     @media (max-width: 980px){ .layout{ grid-template-columns: 1fr; } }
@@ -139,7 +141,10 @@
       background:#fff;
       cursor:pointer; user-select:none;
     }
-    .choice:hover{ border-color:rgba(37,99,235,.35); background:rgba(37,99,235,.04); }
+    .choice:hover{
+      border-color:rgba(37,99,235,.35);
+      background:rgba(37,99,235,.04);
+    }
     .badge{
       width:26px; height:26px; border-radius:9px; display:grid; place-items:center; flex:0 0 auto;
       background:rgba(37,99,235,.12);
@@ -217,6 +222,7 @@
       font-size:13px;
       display:none;
     }
+
     code{ color:var(--accent2); }
   </style>
 </head>
@@ -228,7 +234,7 @@
       <div class="meta" id="meta">—</div>
     </header>
 
-    <!-- ===== Home ===== -->
+    <!-- ===== Home (quiz chooser) ===== -->
     <section id="home" class="card">
       <div class="row" style="margin-bottom:12px;">
         <div class="meta">画像カードからクイズを選んで開始できます。</div>
@@ -237,7 +243,7 @@
       <div class="grid" id="quizGrid"></div>
     </section>
 
-    <!-- ===== App ===== -->
+    <!-- ===== App (quiz) ===== -->
     <section id="app">
       <div class="layout">
         <div class="card" id="mainCard">
@@ -245,8 +251,7 @@
             <div class="progress" id="progress">—</div>
             <div class="controls">
               <label class="toggle"><input type="checkbox" id="shuffleToggle" checked> 問題シャッフル</label>
-              <!-- テストの意味を守るため：テストでは固定OFF、練習でのみ固定ON -->
-              <label class="toggle"><input type="checkbox" id="instantToggle" disabled> 即時判定＆解説（練習専用）</label>
+              <label class="toggle"><input type="checkbox" id="instantToggle"> 即時判定＆解説</label>
               <label class="toggle"><input type="checkbox" id="timerToggle"> タイマー</label>
             </div>
           </div>
@@ -280,7 +285,9 @@
                 <option value="60">60</option>
               </select>
             </div>
-            <div class="meta">残り：<span class="timer" id="timer">—</span></div>
+            <div class="meta">
+              残り：<span class="timer" id="timer">—</span>
+            </div>
           </div>
 
           <div class="q" id="question">—</div>
@@ -324,9 +331,12 @@
 
 <script>
 /* =========================
-  1) クイズ一覧
+  1) クイズ一覧（ここを編集）
+  - image: assets/xxx.png
+  - csv: .../pub?output=csv
 ========================= */
-const QUIZZES=[ {
+const QUIZZES=[
+  {
     id:"cb02",
     title:"消費者行動論 第2回",
     desc:"確認テスト",
@@ -380,8 +390,6 @@ const minutesSelect = document.getElementById("minutesSelect");
   3) 状態
 ========================= */
 let currentQuiz = null;
-let mode = "test"; // "test" | "practice"
-
 let bank = [];
 let questions = [];
 let idx = 0;
@@ -389,12 +397,14 @@ let answers = [];
 let reviewed = [];
 let revealed = [];
 let submitted = false;
-
 let timerId = null;
 let endAt = null;
 
+/* ★モード（test / practice） */
+let mode = "test";
+
 /* =========================
-  4) Utils
+  4) ユーティリティ
 ========================= */
 function escapeHTML(s){
   return String(s ?? "")
@@ -413,7 +423,7 @@ function shuffleArray(a) {
 }
 
 /* =========================
-  5) CSV読み込み・正規化（あなたの元の高機能版）
+  5) CSV読み込み・正規化
 ========================= */
 function parseCSV(text) {
   const rows = [];
@@ -498,7 +508,7 @@ function normalize(rows) {
 }
 
 /* =========================
-  6) Timer
+  6) タイマー
 ========================= */
 function clearTimer(){
   if (timerId) { clearInterval(timerId); timerId = null; }
@@ -508,8 +518,6 @@ function clearTimer(){
 }
 function setupTimer(){
   clearTimer();
-  // 練習モードはタイマー不要（OFF固定）
-  if (mode === "practice") return;
   if (!timerToggle.checked) return;
 
   const minutes = Number(minutesSelect.value);
@@ -536,7 +544,7 @@ function tickTimer(){
 }
 
 /* =========================
-  7) Build & Render
+  7) テスト生成・表示
 ========================= */
 function buildTest() {
   const wantShuffle = shuffleToggle.checked;
@@ -549,7 +557,8 @@ function buildTest() {
   if (countVal === "all") take = pool.length;
   else take = Math.min(pool.length, Number(countVal));
 
-  questions = wantShuffle ? pool.slice(0, take) : [...bank].slice(0, take);
+  questions = pool.slice(0, take);
+  if (!wantShuffle) questions = [...bank].slice(0, take);
 
   idx = 0;
   answers = Array(questions.length).fill(null);
@@ -567,9 +576,7 @@ function buildTest() {
 }
 
 function renderAll(){
-  elMeta.textContent =
-    `「${currentQuiz?.title ?? ""}」：全${bank.length}問から ${questions.length}問` +
-    (mode === "practice" ? "（練習モード）" : "（テストモード）");
+  elMeta.textContent = `「${currentQuiz?.title ?? ""}」：全${bank.length}問から ${questions.length}問` + (mode === "practice" ? "（練習モード）" : "");
   elProgress.textContent = `Q${idx+1} / ${questions.length}`;
   renderNav();
   renderChips();
@@ -612,12 +619,11 @@ function renderQuestion(){
   prevBtn.disabled = idx === 0;
   nextBtn.disabled = idx === questions.length - 1;
 
-  // 練習は提出ボタン無効（結果は不要）
+  // 練習は提出不要（提出ボタンを無効化）
   submitBtn.disabled = (mode === "practice");
 
-  // 解説表示：練習モードで、回答した時だけ
   elHint.style.display = "none";
-  if (mode === "practice" && revealed[idx]) {
+  if (instantToggle.checked && revealed[idx]) {
     const ok = answers[idx] === q.correct;
     elHint.textContent = `${ok ? "✅ 正解！" : "❌ 不正解…"}　${q.explanation || "解説はありません。"}`;
     elHint.style.display = "block";
@@ -639,9 +645,7 @@ function renderQuestion(){
     div.appendChild(t);
 
     const selected = answers[idx];
-
-    // 練習はその問題の判定が出たら固定、テストは提出後のみ固定
-    const fixed = (mode === "practice" && revealed[idx]) || (mode === "test" && submitted);
+    const fixed = submitted || (instantToggle.checked && revealed[idx]);
 
     if (fixed) {
       div.classList.add("disabled");
@@ -660,20 +664,19 @@ function choose(i){
   if (submitted) return;
   answers[idx] = i;
 
-  // ★練習モードだけ即時解説
+  // ★練習モードは「即表示」
   if (mode === "practice") {
     revealed[idx] = true;
+  } else {
+    if (instantToggle.checked) revealed[idx] = true;
   }
 
   elResult.style.display = "none";
   renderAll();
 }
 
-/* =========================
-  8) Result (test mode only)
-========================= */
 function submit(auto=false){
-  if (mode === "practice") return;
+  if (mode === "practice") return; // 練習は提出しない
   if (submitted) return;
   submitted = true;
   clearTimer();
@@ -757,7 +760,7 @@ function showResult(auto){
 }
 
 /* =========================
-  9) Home/App
+  8) 画面切り替え（戻るを確実に）
 ========================= */
 function goHome(){
   clearTimer();
@@ -768,16 +771,20 @@ function goHome(){
   home.style.display = "block";
   app.style.display = "none";
   renderHome();
-  // hashを消しておく（戻るが確実に動く）
+
+  // hashが空でも確実にホーム復帰するように、hashがあれば消す
   if (location.hash) location.hash = "";
 }
+window.goHome = goHome;
+
 function showApp(){
+  pageTitle.textContent = currentQuiz?.title ?? "四択テスト";
   home.style.display = "none";
   app.style.display = "block";
 }
 
 /* =========================
-  10) Render Home
+  9) ホーム描画（テスト/練習を選択）
 ========================= */
 function renderHome(){
   quizGrid.innerHTML = "";
@@ -807,7 +814,7 @@ function renderHome(){
 }
 
 /* =========================
-  11) Start Quiz (CSV fetch)
+  10) クイズ開始（CSV読み込み）
 ========================= */
 async function startQuiz(quizId, selectedMode="test"){
   const qz = QUIZZES.find(x => x.id === quizId);
@@ -821,32 +828,35 @@ async function startQuiz(quizId, selectedMode="test"){
   passSelect.value = String(qz.defaultPass ?? 80);
   minutesSelect.value = String(qz.defaultMinutes ?? 15);
 
-  // ★モードで挙動を固定
+  // 練習モード設定（即時判定固定ON、タイマー固定OFF）
   if (mode === "practice") {
-    instantToggle.checked = true;   // 練習のみON
-    // タイマーは練習では固定OFF
+    instantToggle.checked = true;
+    instantToggle.disabled = true;
     timerToggle.checked = false;
+    timerToggle.disabled = true;
   } else {
-    instantToggle.checked = false;  // テストでは必ずOFF
+    instantToggle.disabled = false;
+    timerToggle.disabled = false;
   }
 
-  // ルート（任意）
-  location.hash = qz.id + (mode === "practice" ? ":practice" : ":test");
+  // ルートに反映
+  location.hash = quizId + (mode === "practice" ? ":practice" : ":test");
 
   showApp();
-  pageTitle.textContent = qz.title + (mode === "practice" ? "（練習）" : "（テスト）");
+  pageTitle.textContent = qz.title + (mode === "practice" ? "（練習）" : "");
   elMeta.textContent = "読み込み中…";
 
+  // エラー表示を初期化
   elErrorBox.style.display = "none";
   elErrorBox.textContent = "";
 
   try{
     const res = await fetch(qz.csv, { cache:"no-store" });
     if(!res.ok) throw new Error(`CSV取得失敗（HTTP ${res.status}）`);
-    const csv = await res.text();
 
+    const csv = await res.text();
     if (csv.trim().startsWith("<!doctype") || csv.toLowerCase().includes("<html")) {
-      throw new Error("CSVではなくHTMLが返っています。URLを pub?output=csv にしてください。");
+      throw new Error("CSVではなくHTMLが返っています。Google SheetsのURLを pub?output=csv にしてください。");
     }
 
     const rows = parseCSV(csv);
@@ -859,13 +869,13 @@ async function startQuiz(quizId, selectedMode="test"){
     elErrorBox.style.display = "block";
     elErrorBox.textContent =
       "読み込みエラー：\n" + e.message +
-      "\n\n対策：\n1) シートを『ファイル → 共有 → ウェブに公開』でCSV公開\n2) URLが .../pub?output=csv か確認\n3) 1行目ヘッダーに question, A, B, C, D, answer があるか確認";
+      "\n\n対策：\n1) シートを「ファイル → 共有 → ウェブに公開」でCSV公開\n2) URLが .../pub?output=csv の形か確認\n3) 1行目ヘッダーに question, A, B, C, D, answer があるか確認";
     console.error(e);
   }
 }
 
 /* =========================
-  12) Events
+  11) イベント
 ========================= */
 backBtn.onclick = () => goHome();
 prevBtn.onclick = () => { idx = Math.max(0, idx-1); renderAll(); };
@@ -874,25 +884,28 @@ markBtn.onclick = () => { reviewed[idx] = !reviewed[idx]; renderAll(); };
 submitBtn.onclick = () => submit(false);
 restartBtn.onclick = () => { if(confirm("出題セットを再生成して最初からやり直しますか？")) buildTest(); };
 
-// テストモードのみタイマー運用（setupTimer内でmode判定している）
+// タイマー設定変更
 [timerToggle, minutesSelect].forEach(el => el.onchange = () => setupTimer());
 
 /* =========================
-  13) Routing
+  12) ルーティング
+  例: #sample:test / #sample:practice
 ========================= */
 function onRoute(){
   const raw = (location.hash || "").replace("#","").trim();
   if (!raw) { goHome(); return; }
+
   const [id, m] = raw.split(":");
   renderHome();
   startQuiz(id, (m === "practice" ? "practice" : "test"));
 }
 
-/* init */
+// 初期化
 renderHome();
 onRoute();
 window.addEventListener("hashchange", onRoute);
 </script>
 </body>
 </html>
+
 
